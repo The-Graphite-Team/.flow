@@ -32,6 +32,27 @@ class ParseTests(unittest.TestCase):
         diagram = parse_flowchart("# heading\n\nStart\n  # branch comment\n  Next")
         self.assertEqual([n.label for n in diagram.nodes], ["Start", "Next"])
 
+    def test_typed_nodes_and_decision_branches(self):
+        diagram = parse_flowchart(
+            "start: Boot\\ndecision: Safe?\\n  yes: Continue\\n  no: warning: Stop!"
+        )
+        self.assertEqual([n.kind for n in diagram.nodes], ["start", "decision", "process", "warning"])
+        self.assertEqual(diagram.nodes[2].branch, "YES")
+        self.assertEqual(diagram.nodes[3].branch, "NO")
+        self.assertTrue(diagram.nodes[3].warning)
+
+    def test_typed_node_shapes_render(self):
+        document = render_flowchart(
+            "start: Boot\\ndecision: Ready?\\n  yes: end: Done"
+        )
+        self.assertIn("<polygon", document)
+        self.assertIn("#dcfce7", document)
+        self.assertIn("YES", document)
+
+    def test_legacy_untyped_syntax_still_works(self):
+        diagram = parse_flowchart("Start -> Check -> Finish")
+        self.assertEqual([n.kind for n in diagram.nodes], ["process", "process", "process"])
+
     def test_rejects_orphan_indentation(self):
         with self.assertRaisesRegex(FlowSyntaxError, "preceding node"):
             parse_flowchart("  Orphan")
