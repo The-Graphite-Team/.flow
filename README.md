@@ -2,6 +2,10 @@
 
 A small, readable language for describing flowcharts. Write a `.flow` file, then render it as a standalone HTML/SVG diagram.
 
+## How It Looks
+
+<img src="demo-screenshot.png" width="450">
+
 ## Quick start
 
 ```flow
