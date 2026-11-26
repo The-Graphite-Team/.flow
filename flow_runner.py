@@ -95,6 +95,7 @@ def parse_flowchart(code: str) -> Diagram:
     last_node_idx: int | None = None
     main_row = -1
     branch_counts: dict[int, int] = {}
+    branch_parent_idx: int | None = None
 
     for line_number, raw_line in enumerate(code.splitlines(), start=1):
         if not raw_line.strip() or raw_line.lstrip().startswith("#"):
@@ -118,7 +119,8 @@ def parse_flowchart(code: str) -> Diagram:
             )
 
         if indented:
-            parent_idx = last_node_idx
+            parent_idx = branch_parent_idx if branch_parent_idx is not None else last_node_idx
+            branch_parent_idx = parent_idx
             parent = nodes[parent_idx]
             branch_index = branch_counts.get(parent_idx, 0)
             branch_counts[parent_idx] = branch_index + 1
@@ -138,6 +140,7 @@ def parse_flowchart(code: str) -> Diagram:
                 last_node_idx = len(nodes) - 1
             continue
 
+        branch_parent_idx = None
         main_row += 1
         previous_idx: int | None = None
         for column, (raw_label, legacy_warning) in enumerate(parts):
