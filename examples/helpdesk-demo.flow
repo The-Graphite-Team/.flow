@@ -1,0 +1,10 @@
+# Flow example: a simple helpdesk decision
+start: New support request
+input: Read issue description
+decision: Is the device powering on?
+  yes: decision: Is the display working?
+    yes: output: Check software and settings
+    no: process: Check display cable and panel
+  no: process: Check power supply and battery
+output: Record troubleshooting result
+end: Close support request
