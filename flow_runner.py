@@ -30,6 +30,8 @@ class Node:
     y: int
     label: str
     warning: bool = False
+    kind: str = "process"
+    branch: str | None = None
 
 
 @dataclass(frozen=True)
@@ -46,7 +48,6 @@ def _parse_parts(line: str, line_number: int) -> list[tuple[str, bool]]:
         raise FlowSyntaxError(
             f"Line {line_number}: empty node. Put a label on both sides of every '->'."
         )
-
     parts: list[tuple[str, bool]] = []
     for raw_part in raw_parts:
         label = raw_part.strip()
@@ -59,52 +60,94 @@ def _parse_parts(line: str, line_number: int) -> list[tuple[str, bool]]:
     return parts
 
 
-def parse_flowchart(code: str) -> Diagram:
-    """Parse .flow text into positioned nodes and connector lines.
+_NODE_TYPES = {"start", "process", "decision", "input", "output", "warning", "end"}
 
-    Unindented lines start new rows. Nodes separated by ``->`` are laid out
-    left-to-right. Indented lines continue a branch from the most recent node.
-    A trailing ``!`` marks a warning node. Lines beginning with ``#`` are comments.
+
+def _typed_label(value: str, line_number: int) -> tuple[str, str, bool]:
+    """Read an optional 'type: label' declaration."""
+    kind = "process"
+    label = value.strip()
+    if ":" in label:
+        possible_kind, remainder = label.split(":", 1)
+        if possible_kind.strip().lower() in _NODE_TYPES:
+            kind = possible_kind.strip().lower()
+            label = remainder.strip()
+    if not label:
+        raise FlowSyntaxError(f"Line {line_number}: a node type needs a label.")
+    warning = kind == "warning" or label.endswith("!")
+    if label.endswith("!"):
+        label = label[:-1].rstrip()
+    if not label:
+        raise FlowSyntaxError(f"Line {line_number}: warning marker '!' needs a label.")
+    return label, kind, warning
+
+
+def parse_flowchart(code: str) -> Diagram:
+    """Parse legacy arrows and the typed .flow syntax into a positioned diagram.
+
+    Typed syntax uses 'type: label' declarations. Indented yes/no/true/false
+    lines branch from the most recent node. Unindented declarations continue
+    the main path vertically. Untyped lines remain ordinary process nodes.
     """
     nodes: list[Node] = []
     arrows: list[tuple[int, int, int, int]] = []
     last_main_idx: int | None = None
     last_node_idx: int | None = None
     main_row = -1
+    branch_counts: dict[int, int] = {}
 
     for line_number, raw_line in enumerate(code.splitlines(), start=1):
         if not raw_line.strip() or raw_line.lstrip().startswith("#"):
             continue
-
         indented = raw_line[0].isspace()
-        parts = _parse_parts(raw_line.strip(), line_number)
+        text = raw_line.strip()
+        branch: str | None = None
+        if indented:
+            import re
+            match = re.match(r"^(yes|no|true|false)\s*:\s*(.*)$", text, re.IGNORECASE)
+            if match:
+                branch = match.group(1).upper()
+                text = match.group(2).strip()
+                if not text:
+                    raise FlowSyntaxError(f"Line {line_number}: branch '{branch.lower()}' needs a node.")
+
+        parts = _parse_parts(text, line_number)
+        if indented and last_node_idx is None:
+            raise FlowSyntaxError(
+                f"Line {line_number}: an indented branch needs a preceding node."
+            )
 
         if indented:
-            if last_node_idx is None:
-                raise FlowSyntaxError(
-                    f"Line {line_number}: an indented branch needs a preceding node."
-                )
-            for label, warning in parts:
-                parent = nodes[last_node_idx]
+            parent_idx = last_node_idx
+            parent = nodes[parent_idx]
+            branch_index = branch_counts.get(parent_idx, 0)
+            branch_counts[parent_idx] = branch_index + 1
+            for part_index, (raw_label, legacy_warning) in enumerate(parts):
+                label, kind, warning = _typed_label(raw_label, line_number)
+                warning = warning or legacy_warning
                 x = parent.x + BOX_W + GAP_X
-                y = parent.y
-                nodes.append(Node(x, y, label, warning))
+                y = parent.y + branch_index * (BOX_H + GAP_Y)
+                if part_index:
+                    previous = nodes[-1]
+                    x = previous.x + BOX_W + GAP_X
+                    y = previous.y
+                nodes.append(Node(x, y, label, warning, kind, branch if part_index == 0 else None))
                 arrows.append((parent.x + BOX_W, parent.y + BOX_H // 2,
                                x, y + BOX_H // 2))
+                parent = nodes[-1]
                 last_node_idx = len(nodes) - 1
             continue
 
         main_row += 1
-        row_first_idx: int | None = None
         previous_idx: int | None = None
-        for column, (label, warning) in enumerate(parts):
+        for column, (raw_label, legacy_warning) in enumerate(parts):
+            label, kind, warning = _typed_label(raw_label, line_number)
+            warning = warning or legacy_warning
             x = START_X + column * (BOX_W + GAP_X)
             y = START_Y + main_row * (BOX_H + GAP_Y)
-            nodes.append(Node(x, y, label, warning))
+            nodes.append(Node(x, y, label, warning, kind))
             current_idx = len(nodes) - 1
-
             if column == 0:
-                row_first_idx = current_idx
                 if last_main_idx is not None:
                     parent = nodes[last_main_idx]
                     arrows.append((parent.x + BOX_W // 2, parent.y + BOX_H,
@@ -112,13 +155,10 @@ def parse_flowchart(code: str) -> Diagram:
                 last_main_idx = current_idx
             elif previous_idx is not None:
                 parent = nodes[previous_idx]
-                child = nodes[current_idx]
                 arrows.append((parent.x + BOX_W, parent.y + BOX_H // 2,
-                               child.x, child.y + BOX_H // 2))
-
+                               x, y + BOX_H // 2))
             previous_idx = current_idx
-
-        last_node_idx = previous_idx if previous_idx is not None else row_first_idx
+        last_node_idx = previous_idx
 
     if not nodes:
         raise FlowSyntaxError("The .flow file is empty. Add at least one node.")
@@ -143,13 +183,29 @@ def render_flowchart(code: str, title: str = "Flowchart") -> str:
     for node in diagram.nodes:
         if node.warning:
             fill, stroke, text_color = "#fff1f2", "#e11d48", "#9f1239"
+        elif node.kind == "start":
+            fill, stroke, text_color = "#dcfce7", "#16a34a", "#166534"
+        elif node.kind == "end":
+            fill, stroke, text_color = "#dbeafe", "#2563eb", "#1e40af"
+        elif node.kind == "decision":
+            fill, stroke, text_color = "#fef3c7", "#d97706", "#92400e"
+        elif node.kind in {"input", "output"}:
+            fill, stroke, text_color = "#ede9fe", "#7c3aed", "#5b21b6"
         else:
             fill, stroke, text_color = "#ffffff", "#334155", "#0f172a"
         label = html.escape(node.label, quote=True)
+        if node.kind == "decision":
+            shape = f'<polygon points="{BOX_W / 2},0 {BOX_W},{BOX_H / 2} {BOX_W / 2},{BOX_H} 0,{BOX_H / 2}" fill="{fill}" stroke="{stroke}" stroke-width="2" />'
+        elif node.kind in {"input", "output"}:
+            shape = f'<polygon points="18,0 {BOX_W},0 {BOX_W - 18},{BOX_H} 0,{BOX_H}" fill="{fill}" stroke="{stroke}" stroke-width="2" />'
+        else:
+            radius = 28 if node.kind in {"start", "end"} else 10
+            shape = f'<rect width="{BOX_W}" height="{BOX_H}" rx="{radius}" fill="{fill}" stroke="{stroke}" stroke-width="2" />'
+        branch = (f'<text x="8" y="-7" font-family="system-ui, sans-serif" '
+                  f'font-size="11" font-weight="700" fill="#475569">{html.escape(node.branch or "")}</text>'
+                  if node.branch else "")
         elements.append(
-            f'<g transform="translate({node.x}, {node.y})">'
-            f'<rect width="{BOX_W}" height="{BOX_H}" rx="10" '
-            f'fill="{fill}" stroke="{stroke}" stroke-width="2" />'
+            f'<g transform="translate({node.x}, {node.y})">{branch}{shape}'
             f'<text x="{BOX_W / 2}" y="{BOX_H / 2 + 5}" '
             'font-family="system-ui, sans-serif" font-size="14" '
             f'font-weight="600" fill="{text_color}" text-anchor="middle">'
