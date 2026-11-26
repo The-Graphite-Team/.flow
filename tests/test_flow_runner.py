@@ -1,4 +1,3 @@
-import re
 import unittest
 import xml.etree.ElementTree as ET
 
@@ -50,8 +49,9 @@ class ParseTests(unittest.TestCase):
 class RenderTests(unittest.TestCase):
     def test_svg_is_well_formed_and_uses_correct_namespace(self):
         document = render_flowchart("Start -> Finish", "Demo")
-        svg_text = re.search(r"(<svg\\b.*?</svg>)", document, re.S).group(1)
-        root = ET.fromstring(svg_text)
+        start = document.index("<svg")
+        end = document.index("</svg>") + len("</svg>")
+        root = ET.fromstring(document[start:end])
         self.assertEqual(root.tag, f"{{{SVG_NS}}}svg")
         self.assertEqual(len(root.findall(f".//{{{SVG_NS}}}rect")), 2)
 
