@@ -34,7 +34,7 @@ class ParseTests(unittest.TestCase):
 
     def test_typed_nodes_and_decision_branches(self):
         diagram = parse_flowchart(
-            "start: Boot\\ndecision: Safe?\\n  yes: Continue\\n  no: warning: Stop!"
+            "start: Boot\ndecision: Safe?\n  yes: Continue\n  no: warning: Stop!"
         )
         self.assertEqual([n.kind for n in diagram.nodes], ["start", "decision", "process", "warning"])
         self.assertEqual(diagram.nodes[2].branch, "YES")
@@ -43,7 +43,7 @@ class ParseTests(unittest.TestCase):
 
     def test_typed_node_shapes_render(self):
         document = render_flowchart(
-            "start: Boot\\ndecision: Ready?\\n  yes: end: Done"
+            "start: Boot\ndecision: Ready?\n  yes: end: Done"
         )
         self.assertIn("<polygon", document)
         self.assertIn("#dcfce7", document)
