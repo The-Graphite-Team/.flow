@@ -1,0 +1,45 @@
+name: Build Windows executable
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "flow_runner.py"
+      - "tests/**"
+      - "flow_runner.spec"
+      - ".github/workflows/build-exe.yml"
+  push:
+    branches: [main]
+    paths:
+      - "flow_runner.py"
+      - "flow_runner.spec"
+      - ".github/workflows/build-exe.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run unit tests
+        run: python -m unittest discover -s tests -v
+      - name: Install PyInstaller
+        run: python -m pip install --upgrade pyinstaller
+      - name: Build executable
+        run: pyinstaller --clean flow_runner.spec
+      - name: Verify executable exists
+        run: |
+          if (!(Test-Path "dist/flow_runner.exe")) { throw "Executable was not created" }
+      - name: Upload executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: flow-runner-windows
+          path: dist/flow_runner.exe
+          if-no-files-found: error
+          retention-days: 30

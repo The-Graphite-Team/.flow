@@ -1,106 +1,116 @@
 # .flow
 
-A lightweight, text-based language for describing flowcharts. Write a `.flow` file in a text editor, then render it as a standalone HTML/SVG diagram with the Python runner.
+A small, readable language for describing flowcharts. Write a `.flow` file, then render it as a standalone HTML/SVG diagram.
 
-## Features
+## Quick start
 
-- Plain-text flowchart definitions.
-- Left-to-right chains using `->`.
-- Indented branch continuations.
-- Warning nodes marked with a trailing `!`.
-- Comments beginning with `#`.
-- Standalone HTML output that works in a modern browser.
-- No third-party Python packages required.
+```flow
+start: Power on
+process: Check the fuse
+decision: Is the fuse intact?
+  yes: Start controller
+  no: Replace fuse!
+end: System ready
+```
 
-## Requirements
-
-- Python 3.10 or newer.
-- A modern web browser to view the generated chart.
-
-## Run
+Run it:
 
 ```bash
-python flow_runner.py path/to/example.flow
+python flow_runner.py example.flow
 ```
 
-The chart opens in your default browser. To save the HTML to a known location without opening it:
+The Windows build is available as `dist/flow_runner.exe`. No third-party Python packages are needed to run the source version. Python 3.10+ is required.
 
-```bash
-python flow_runner.py path/to/example.flow --output build/example.html --no-open
-```
+## Language guide
 
-On Windows, you can also use the packaged `dist/flow_runner.exe` if you prefer not to install Python. The executable is a prebuilt release artifact and may not include the latest source changes; rebuild it after updating the source (see below).
+### Node declarations
 
-## Syntax
+Every line creates a node. The type is optional; an untyped node is a `process`.
 
-An unindented line starts a new row. Separate nodes on the same row with `->`:
+| Syntax | Meaning | Appearance |
+|---|---|---|
+| `start: Label` | Entry point | Green rounded capsule |
+| `process: Label` | Action or operation | Standard rectangle |
+| `decision: Question?` | Yes/no decision | Diamond |
+| `input: Label` | Input data | Purple parallelogram |
+| `output: Label` | Output data | Purple parallelogram |
+| `warning: Label` | Warning or fault | Red rectangle |
+| `end: Label` | Exit point | Blue rounded capsule |
+
+The type is followed by a colon and a label. Labels can contain spaces and punctuation. A trailing `!` also marks a warning.
+
+### Connections and branches
+
+Unindented lines form the main path, top to bottom:
 
 ```flow
-Power source -> Circuit breaker -> Controller
+start: Boot
+process: Load configuration
+process: Start service
+end: Ready
 ```
 
-A new unindented line starts the next main row and connects vertically from the previous main row:
+Indent a branch under its parent node. Decision branches can be labelled `yes`, `no`, `true`, or `false`:
 
 ```flow
-Power source
-Circuit breaker
-Controller
+start: Read sensor
+decision: Temperature safe?
+  yes: Continue operation
+  no: warning: Shut down system!
+end: Monitoring complete
 ```
 
-An indented line continues a branch horizontally from the most recently created node. You can chain multiple nodes on a branch:
+For compact diagrams, connect nodes on one line with `->`:
 
 ```flow
-Power source
-    120V AC input -> Circuit breaker
-        Controller
-    Backup supply
+start: Battery -> process: Fuse -> output: Motor
 ```
 
-Mark a warning node with `!` at the end of its label:
+### Comments
 
-```flow
-Thin wire -> Excess current! -> Overheating!
-```
-
-Use `#` for comments and blank lines for spacing:
+Lines beginning with `#` and blank lines are ignored.
 
 ```flow
 # Main power path
-Battery -> Fuse -> Load
+start: Battery
+process: Check voltage
 
-# This is a separate row
-Status indicator
+# This is a separate section
+end: Complete
 ```
 
-### Syntax rules
+## Syntax rules
 
 - Node labels cannot be empty.
-- Every `->` must have a node label on both sides.
 - A branch must be indented and must follow an existing node.
-- `->` is a reserved separator and cannot currently appear inside a label.
-- `!` is treated as a warning marker only when it appears at the end of a label.
+- `->` separates nodes on the same line and cannot appear inside a label.
+- Node types are `start`, `process`, `decision`, `input`, `output`, `warning`, and `end`.
+- Untyped labels remain supported as ordinary process nodes, so older files continue to work.
 
-## Development
+## Command line
 
-Run the test suite with the Python standard library:
+```bash
+python flow_runner.py path/to/example.flow
+python flow_runner.py path/to/example.flow --output build/example.html --no-open
+```
+
+## Development and executable build
+
+Run tests:
 
 ```bash
 python -m unittest discover -s tests -v
 ```
 
-Build the Windows executable from the repository root (requires PyInstaller):
+Build the Windows executable:
 
 ```bash
 python -m pip install pyinstaller
 pyinstaller --clean flow_runner.spec
 ```
 
-The generated executable is placed in `dist/`.
-
-## Project status
-
-Early prototype. The language and layout rules may evolve. See the tests for the currently supported parsing and rendering behaviour.
+The executable is written to `dist/flow_runner.exe`.
 
 ## Licence
 
-This project is distributed under the GNU General Public License v3.0. See [LICENSE](LICENSE).
+GNU General Public License v3.0. See [LICENSE](LICENSE).
