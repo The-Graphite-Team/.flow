@@ -114,3 +114,26 @@ The executable is written to `dist/flow_runner.exe`.
 ## Licence
 
 GNU General Public License v3.0. See [LICENSE](LICENSE).
+
+
+## Examples
+
+Runnable examples are in [examples/](examples/):
+
+- [Startup demo](examples/startup-demo.flow)
+- [Helpdesk demo](examples/helpdesk-demo.flow)
+
+Run one with:
+
+```powershell
+.\\flow_runner.exe .\\examples\\startup-demo.flow
+```
+
+## Installing and verifying releases
+
+Download prebuilt Windows packages from the [GitHub Releases](https://github.com/The-Graphite-Team/.flow/releases) page.
+
+- [Windows installation guide](INSTALL.md)
+- [Release verification guide](VERIFYING.md)
+
+The release workflow publishes the executable, example files, SHA-256 checksums, and GitHub build provenance attestation. Releases are not Authenticode-signed yet, so Windows may still show an unknown-publisher warning.

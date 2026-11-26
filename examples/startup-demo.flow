@@ -1,0 +1,13 @@
+# Flow example: a small device startup sequence
+# Save this file as startup-demo.flow and run:
+#   flow_runner.exe startup-demo.flow
+
+start: Power on
+input: Read battery voltage
+decision: Is voltage above 11V?
+  yes: process: Initialise controller
+  no: warning: Show low battery warning!
+decision: Did initialisation succeed?
+  yes: output: Display system ready
+  no: warning: Stop and request inspection!
+end: Startup check complete
